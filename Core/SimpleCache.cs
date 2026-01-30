@@ -38,16 +38,19 @@ namespace Single_Node_Cache.Core
                 _lruList.AddFirst(key);
 
                 Console.WriteLine($"[SET] {key}");
-                CacheChanged?.Invoke();
             }
             finally
             {
                 _lock.ExitWriteLock();
             }
+            
+            CacheChanged?.Invoke();
         }
 
         public object? Get(string key)
         {
+            bool itemExpired = false;
+            
             _lock.EnterUpgradeableReadLock();
             try
             {
@@ -66,7 +69,7 @@ namespace Single_Node_Cache.Core
                     finally { _lock.ExitWriteLock(); }
 
                     Console.WriteLine($"[EXPIRED] {key}");
-                    CacheChanged?.Invoke();
+                    itemExpired = true;
                     return null;
                 }
 
@@ -85,6 +88,9 @@ namespace Single_Node_Cache.Core
             {
                 _lock.ExitUpgradeableReadLock();
             }
+            
+            if (itemExpired)
+                CacheChanged?.Invoke();
         }
 
         private void EvictLeastRecentlyUsed()
@@ -94,7 +100,6 @@ namespace Single_Node_Cache.Core
                 var lruKey = _lruList.Last.Value;
                 Remove(lruKey);
                 Console.WriteLine($"[EVICT] {lruKey}");
-                CacheChanged?.Invoke();
             }
         }
 
@@ -106,6 +111,8 @@ namespace Single_Node_Cache.Core
 
         private void RemoveExpiredItems()
         {
+            bool hasExpired = false;
+            
             _lock.EnterWriteLock();
             try
             {
@@ -123,13 +130,15 @@ namespace Single_Node_Cache.Core
                     Console.WriteLine($"[CLEANUP] {key}");
                 }
 
-                if (expiredKeys.Count > 0)
-                    CacheChanged?.Invoke();
+                hasExpired = expiredKeys.Count > 0;
             }
             finally
             {
                 _lock.ExitWriteLock();
             }
+            
+            if (hasExpired)
+                CacheChanged?.Invoke();
         }
 
         public (int capacity, int count, List<(string key, object value, DateTime? expiryTime, bool isExpired)> items) GetCacheState()
@@ -148,6 +157,23 @@ namespace Single_Node_Cache.Core
                 }
 
                 return (_capacity, _store.Count, items);
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
+        }
+
+        public (bool exists, DateTime? expiryTime) GetExpiry(string key)
+        {
+            _lock.EnterReadLock();
+            try
+            {
+                if (_store.TryGetValue(key, out var item))
+                {
+                    return (true, item.ExpiryTime);
+                }
+                return (false, null);
             }
             finally
             {
