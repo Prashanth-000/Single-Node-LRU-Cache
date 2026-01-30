@@ -108,23 +108,23 @@ The system features a beautiful real-time CLI interface that visualizes cache op
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                     CLI Layer (UI)                       │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │          CacheConsole (Real-time UI)              │  │
-│  │  • Event Subscriptions                            │  │
-│  │  • Message Display                                │  │
-│  │  • Cache Visualization                            │  │
-│  └──────────────────────────────────────────────────┘  │
+│                     CLI Layer (UI)                      │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │          CacheConsole (Real-time UI)             │   │
+│  │  • Event Subscriptions                           │   │
+│  │  • Message Display                               │   │
+│  │  • Cache Visualization                           │   │
+│  └──────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
                           ↕ Events
 ┌─────────────────────────────────────────────────────────┐
-│                   Service Layer                          │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │              CacheManager                         │  │
-│  │  • Write-Through Strategy                         │  │
-│  │  • Read-Through Strategy                          │  │
-│  │  • Cache Warming                                  │  │
-│  └──────────────────────────────────────────────────┘  │
+│                   Service Layer                         │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │              CacheManager                        │   │
+│  │  • Write-Through Strategy                        │   │ 
+│  │  • Read-Through Strategy                         │   │
+│  │  • Cache Warming                                 │   │
+│  └──────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
            ↕                              ↕
 ┌──────────────────────┐      ┌──────────────────────────┐
@@ -154,14 +154,14 @@ CacheManager (Coordination)
 ↓                   ↓                    ↓
 SimpleCache      FileDatabase      CleanupService
 (In-Memory)      (Persistent)      (Background)
-    ↓                   ↓                    ↓
+↓                   ↓                    ↓
 Events Fired    Events Fired        Events Fired
-    ↓                   ↓                    ↓
-    └───────────────────┴────────────────────┘
-                        ↓
-              CacheConsole (UI Update)
-                        ↓
-              AddMessage (Display)
+↓                   ↓                    ↓
+└───────────────────┴────────────────────┘
+                    ↓
+            CacheConsole (UI Update)
+                    ↓
+            AddMessage (Display)
 ```
 
 ---
@@ -299,10 +299,10 @@ Database contains 3 items:
 User: SET user1 John 30
     ↓
 1. Write to Database (1000ms delay) ─────┐
-2. Write to Cache                         │
-3. Fire ItemSet Event                     │
-4. Update UI                              │
-    ↓                                     ↓
+2. Write to Cache                        │
+3. Fire ItemSet Event                    │
+4. Update UI                             │
+    ↓                                    ↓
 Cache: [user1=John, TTL:30s]    DB: user1=John
 ```
 
@@ -370,7 +370,7 @@ Check all items for expiration
                             ↓
                   Fire ItemCleaned Event
                             ↓
-                      Update UI
+                         Update UI
 ```
 
 ---
