@@ -1,23 +1,27 @@
-using Single_Node_Cache.Core;
+using Single_Node_Cache.Services;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace Single_Node_Cache.CLI
 {
     internal class CacheConsole
     {
-        private readonly SimpleCache _cache;
+        private readonly CacheManager _cacheManager;
         private const int LeftPanelWidth = 60;
         private const int HeaderHeight = 5;
         private int _inputRow;
         private readonly List<string> _messages = new();
         private const int MaxMessages = 10;
 
-        public CacheConsole(SimpleCache cache)
+        public CacheConsole(CacheManager cacheManager)
         {
-            _cache = cache;
-            _cache.CacheChanged += OnCacheChanged;
+            _cacheManager = cacheManager;
+            
+            // Subscribe to cache changes for automatic UI updates
+            _cacheManager.CacheChanged += OnCacheChanged;
         }
 
         public void Run()
@@ -55,6 +59,14 @@ namespace Single_Node_Cache.CLI
                     case "EX":
                         HandleExpiry(parts);
                         break;
+                        
+                    case "DEL":
+                        HandleDelete(parts);
+                        break;
+                        
+                    case "DBLIST":
+                        HandleDatabaseList();
+                        break;
 
                     case "CLEAR":
                         _messages.Clear();
@@ -83,8 +95,23 @@ namespace Single_Node_Cache.CLI
 
         private void InitializeUI()
         {
-            Console.SetWindowSize(Math.Min(120, Console.LargestWindowWidth), 
-                                 Math.Min(40, Console.LargestWindowHeight));
+            try
+            {
+                // Try to set a reasonable window size
+                int targetWidth = Math.Min(120, Console.LargestWindowWidth);
+                int targetHeight = Math.Min(40, Console.LargestWindowHeight);
+                
+                // Only resize if current size is too small
+                if (Console.WindowWidth < 80 || Console.WindowHeight < 30)
+                {
+                    Console.SetWindowSize(targetWidth, targetHeight);
+                }
+            }
+            catch
+            {
+                // Window resizing not supported, use current size
+            }
+            
             _inputRow = Console.WindowHeight - 4;
         }
 
@@ -131,20 +158,15 @@ namespace Single_Node_Cache.CLI
             DrawBox(0, _inputRow, Console.WindowWidth - 1, Console.WindowHeight - _inputRow - 1, ConsoleColor.Magenta);
             Console.SetCursorPosition(2, _inputRow);
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.Write("+- COMMANDS: SET <key> <value> [ttl] | GET <key> | EX <key> | CLEAR | EXIT -+");
+            Console.Write("+- COMMANDS: SET <key> <value> [ttl] | GET <key> | EX <key> | DEL <key> | DBLIST | CLEAR | EXIT -+");
             Console.ResetColor();
         }
 
         private void UpdateCacheDisplay()
         {
-            // Save current cursor position
-            var cursorLeft = Console.CursorLeft;
-            var cursorTop = Console.CursorTop;
-            var cursorVisible = Console.CursorVisible;
-            
             try
             {
-                var state = _cache.GetCacheState();
+                var state = _cacheManager.GetCacheState();
                 
                 // Clear cache display area
                 for (int i = 0; i < _inputRow - HeaderHeight - 2; i++)
@@ -160,12 +182,12 @@ namespace Single_Node_Cache.CLI
                 
                 // Draw capacity bar
                 int barWidth = 30;
-                int filled = (int)((double)state.count / state.capacity * barWidth);
+                int filled = state.capacity > 0 ? (int)((double)state.count / state.capacity * barWidth) : 0;
                 Console.Write("[");
                 Console.ForegroundColor = state.count >= state.capacity ? ConsoleColor.Red : ConsoleColor.Green;
-                Console.Write(new string('¦', filled));
+                Console.Write(new string('?', filled));
                 Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.Write(new string('¦', barWidth - filled));
+                Console.Write(new string('?', barWidth - filled));
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.Write("]");
                 Console.ResetColor();
@@ -188,7 +210,7 @@ namespace Single_Node_Cache.CLI
                     // Value
                     Console.ForegroundColor = ConsoleColor.Gray;
                     string valueStr = item.value?.ToString() ?? "null";
-                    Console.Write($" ¦ {valueStr.Substring(0, Math.Min(15, valueStr.Length)),-15}");
+                    Console.Write($" | {valueStr.Substring(0, Math.Min(15, valueStr.Length)),-15}");
 
                     // TTL info
                     if (item.expiryTime.HasValue)
@@ -197,18 +219,18 @@ namespace Single_Node_Cache.CLI
                         if (remaining.TotalSeconds > 0)
                         {
                             Console.ForegroundColor = remaining.TotalSeconds < 5 ? ConsoleColor.Yellow : ConsoleColor.Green;
-                            Console.Write($" ¦ {remaining.TotalSeconds:F1}s");
+                            Console.Write($" | {remaining.TotalSeconds:F1}s");
                         }
                         else
                         {
                             Console.ForegroundColor = ConsoleColor.Red;
-                            Console.Write(" ¦ EXPIRED");
+                            Console.Write(" | EXPIRED");
                         }
                     }
                     else
                     {
                         Console.ForegroundColor = ConsoleColor.Cyan;
-                        Console.Write(" ¦ 8 NO TTL");
+                        Console.Write(" | NO TTL");
                     }
 
                     Console.ResetColor();
@@ -226,16 +248,6 @@ namespace Single_Node_Cache.CLI
                     Console.ResetColor();
                 }
                 catch { /* Ignore if even error display fails */ }
-            }
-            finally
-            {
-                // Restore cursor position
-                try
-                {
-                    Console.SetCursorPosition(cursorLeft, cursorTop);
-                    Console.CursorVisible = cursorVisible;
-                }
-                catch { /* Ignore if cursor position invalid */ }
             }
         }
 
@@ -263,30 +275,29 @@ namespace Single_Node_Cache.CLI
         private void AddMessage(string message, ConsoleColor color = ConsoleColor.White)
         {
             var timestamp = DateTime.Now.ToString("HH:mm:ss");
-            var colorCode = color switch
+            var icon = color switch
             {
-                ConsoleColor.Green => "?",
-                ConsoleColor.Red => "?",
-                ConsoleColor.Yellow => "?",
-                _ => "?"
+                ConsoleColor.Green => "+",
+                ConsoleColor.Red => "X",
+                ConsoleColor.Yellow => "!",
+                ConsoleColor.Cyan => "i",
+                _ => "*"
             };
 
-            var oldColor = Console.ForegroundColor;
-            var formattedMessage = $"{timestamp} {colorCode} ";
+            var formattedMessage = $"{timestamp} {icon} {message}";
             
-            _messages.Add(formattedMessage);
+            lock (_messages)
+            {
+                _messages.Add(formattedMessage);
+                
+                // Keep only recent messages
+                while (_messages.Count > 50)
+                {
+                    _messages.RemoveAt(0);
+                }
+            }
             
-            // Store original for redraw
-            var currentPos = Console.GetCursorPosition();
             DrawMessagesPanel();
-            
-            Console.SetCursorPosition(LeftPanelWidth + 2, Math.Min(_inputRow - 2, HeaderHeight + 1 + (_messages.Count - 1)));
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.Write(timestamp);
-            Console.Write(" ");
-            Console.ForegroundColor = color;
-            Console.Write($"{colorCode} {message}");
-            Console.ForegroundColor = oldColor;
         }
 
         private void DrawCommandPrompt()
@@ -318,15 +329,24 @@ namespace Single_Node_Cache.CLI
             string key = parts[1];
             string value = parts[2];
 
-            if (parts.Length == 4 && int.TryParse(parts[3], out int ttl))
+            try
             {
-                _cache.Set(key, value, TimeSpan.FromSeconds(ttl));
-                AddMessage($"SET {key} = {value} (TTL: {ttl}s)", ConsoleColor.Green);
+                if (parts.Length == 4 && int.TryParse(parts[3], out int ttl))
+                {
+                    _cacheManager.Set(key, value, TimeSpan.FromSeconds(ttl));
+                    AddMessage($"SET {key} = {value} (TTL: {ttl}s)", ConsoleColor.Green);
+                }
+                else
+                {
+                    _cacheManager.Set(key, value);
+                    AddMessage($"SET {key} = {value} (No TTL)", ConsoleColor.Green);
+                }
+                
+                UpdateCacheDisplay();
             }
-            else
+            catch (Exception ex)
             {
-                _cache.Set(key, value);
-                AddMessage($"SET {key} = {value} (No TTL)", ConsoleColor.Green);
+                AddMessage($"SET failed: {ex.Message}", ConsoleColor.Red);
             }
         }
 
@@ -338,14 +358,26 @@ namespace Single_Node_Cache.CLI
                 return;
             }
 
-            var result = _cache.Get(parts[1]);
-            if (result != null)
+            try
             {
-                AddMessage($"GET {parts[1]} = {result}", ConsoleColor.Green);
+                var startTime = DateTime.Now;
+                var result = _cacheManager.Get(parts[1]);
+                var elapsed = (DateTime.Now - startTime).TotalMilliseconds;
+                
+                if (result != null)
+                {
+                    AddMessage($"GET {parts[1]} = {result} ({elapsed:F0}ms)", ConsoleColor.Green);
+                }
+                else
+                {
+                    AddMessage($"GET {parts[1]} = (null) ({elapsed:F0}ms)", ConsoleColor.Yellow);
+                }
+                
+                UpdateCacheDisplay();
             }
-            else
+            catch (Exception ex)
             {
-                AddMessage($"GET {parts[1]} = (null)", ConsoleColor.Yellow);
+                AddMessage($"GET failed: {ex.Message}", ConsoleColor.Red);
             }
         }
 
@@ -357,16 +389,16 @@ namespace Single_Node_Cache.CLI
                 return;
             }
 
-            var expiryInfo = _cache.GetExpiry(parts[1]);
+            var expiryInfo = _cacheManager.GetExpiry(parts[1]);
             if (!expiryInfo.exists)
             {
-                AddMessage($"EX {parts[1]} - Key not found", ConsoleColor.Yellow);
+                AddMessage($"EX {parts[1]} - Key not found in cache", ConsoleColor.Yellow);
                 return;
             }
 
             if (!expiryInfo.expiryTime.HasValue)
             {
-                AddMessage($"EX {parts[1]} - No expiry (8 infinite TTL)", ConsoleColor.Cyan);
+                AddMessage($"EX {parts[1]} - No expiry (infinite TTL)", ConsoleColor.Cyan);
             }
             else
             {
@@ -382,10 +414,85 @@ namespace Single_Node_Cache.CLI
                 }
             }
         }
+        
+        private void HandleDelete(string[] parts)
+        {
+            if (parts.Length != 2)
+            {
+                AddMessage("Usage: DEL <key>", ConsoleColor.Red);
+                return;
+            }
+
+            try
+            {
+                var deleted = _cacheManager.Delete(parts[1]);
+                if (deleted)
+                {
+                    AddMessage($"DEL {parts[1]} - Deleted from database", ConsoleColor.Green);
+                }
+                else
+                {
+                    AddMessage($"DEL {parts[1]} - Key not found in database", ConsoleColor.Yellow);
+                }
+                
+                // Display updates automatically via CacheChanged event
+            }
+            catch (Exception ex)
+            {
+                AddMessage($"DEL failed: {ex.Message}", ConsoleColor.Red);
+            }
+        }
+        
+        private void HandleDatabaseList()
+        {
+            try
+            {
+                var dbItems = _cacheManager.GetAllFromDatabase();
+                AddMessage($"Database contains {dbItems.Count} items:", ConsoleColor.Cyan);
+                
+                foreach (var item in dbItems)
+                {
+                    AddMessage($"  {item.Key} = {item.Value}", ConsoleColor.Gray);
+                }
+                
+                if (dbItems.Count == 0)
+                {
+                    AddMessage("  (database is empty)", ConsoleColor.DarkGray);
+                }
+            }
+            catch (Exception ex)
+            {
+                AddMessage($"DBLIST failed: {ex.Message}", ConsoleColor.Red);
+            }
+        }
 
         private void OnCacheChanged()
         {
-            UpdateCacheDisplay();
+            // Save cursor position to avoid disrupting user input
+            try
+            {
+                var cursorLeft = Console.CursorLeft;
+                var cursorTop = Console.CursorTop;
+                var cursorVisible = Console.CursorVisible;
+                
+                Console.CursorVisible = false;
+                UpdateCacheDisplay();
+                DrawMessagesPanel();
+                
+                // Restore cursor position
+                Console.SetCursorPosition(cursorLeft, cursorTop);
+                Console.CursorVisible = cursorVisible;
+            }
+            catch
+            {
+                // If cursor positioning fails, just update the display
+                try
+                {
+                    UpdateCacheDisplay();
+                    DrawMessagesPanel();
+                }
+                catch { /* Ignore update errors */ }
+            }
         }
 
         private void DrawBox(int left, int top, int width, int height, ConsoleColor color)
