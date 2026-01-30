@@ -12,6 +12,8 @@ namespace Single_Node_Cache.Core
         public CacheItem(object value, TimeSpan? ttl)
         {
             Value = value;
+            if (ttl == null)
+                ttl = TimeSpan.FromSeconds(10);
             ExpiryTime = ttl == null
                 ? null
                 : DateTime.UtcNow.Add(ttl.Value);
@@ -19,7 +21,7 @@ namespace Single_Node_Cache.Core
 
         public bool IsExpired()
         {
-            return ExpiryTime != null && DateTime.UtcNow > ExpiryTime;
+            return DateTime.UtcNow > ExpiryTime;
         }
     }
 }

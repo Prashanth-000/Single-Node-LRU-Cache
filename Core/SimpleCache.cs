@@ -14,6 +14,8 @@ namespace Single_Node_Cache.Core
 
         private readonly CleanupService _cleanupService;
 
+        public event Action? CacheChanged;
+
         public SimpleCache(int capacity)
         {
             _capacity = capacity;
@@ -36,6 +38,7 @@ namespace Single_Node_Cache.Core
                 _lruList.AddFirst(key);
 
                 Console.WriteLine($"[SET] {key}");
+                CacheChanged?.Invoke();
             }
             finally
             {
@@ -43,7 +46,7 @@ namespace Single_Node_Cache.Core
             }
         }
 
-        public object Get(string key)
+        public object? Get(string key)
         {
             _lock.EnterUpgradeableReadLock();
             try
@@ -85,9 +88,13 @@ namespace Single_Node_Cache.Core
 
         private void EvictLeastRecentlyUsed()
         {
-            var lruKey = _lruList.Last.Value;
-            Remove(lruKey);
-            Console.WriteLine($"[EVICT] {lruKey}");
+            if (_lruList.Last != null)
+            {
+                var lruKey = _lruList.Last.Value;
+                Remove(lruKey);
+                Console.WriteLine($"[EVICT] {lruKey}");
+                CacheChanged?.Invoke();
+            }
         }
 
         private void Remove(string key)
@@ -114,6 +121,9 @@ namespace Single_Node_Cache.Core
                     Remove(key);
                     Console.WriteLine($"[CLEANUP] {key}");
                 }
+
+                if (expiredKeys.Count > 0)
+                    CacheChanged?.Invoke();
             }
             finally
             {
