@@ -66,6 +66,7 @@ namespace Single_Node_Cache.Core
                     finally { _lock.ExitWriteLock(); }
 
                     Console.WriteLine($"[EXPIRED] {key}");
+                    CacheChanged?.Invoke();
                     return null;
                 }
 
@@ -128,6 +129,29 @@ namespace Single_Node_Cache.Core
             finally
             {
                 _lock.ExitWriteLock();
+            }
+        }
+
+        public (int capacity, int count, List<(string key, object value, DateTime? expiryTime, bool isExpired)> items) GetCacheState()
+        {
+            _lock.EnterReadLock();
+            try
+            {
+                var items = new List<(string key, object value, DateTime? expiryTime, bool isExpired)>();
+                
+                foreach (var key in _lruList)
+                {
+                    if (_store.TryGetValue(key, out var item))
+                    {
+                        items.Add((key, item.Value, item.ExpiryTime, item.IsExpired()));
+                    }
+                }
+
+                return (_capacity, _store.Count, items);
+            }
+            finally
+            {
+                _lock.ExitReadLock();
             }
         }
     }
