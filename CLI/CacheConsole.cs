@@ -1,4 +1,4 @@
-using Single_Node_Cache.Services;
+ï»¿using Single_Node_Cache.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,8 +19,6 @@ namespace Single_Node_Cache.CLI
         public CacheConsole(CacheManager cacheManager)
         {
             _cacheManager = cacheManager;
-            
-            // Subscribe to cache changes for automatic UI updates
             _cacheManager.CacheChanged += OnCacheChanged;
         }
 
@@ -97,11 +95,9 @@ namespace Single_Node_Cache.CLI
         {
             try
             {
-                // Try to set a reasonable window size
                 int targetWidth = Math.Min(120, Console.LargestWindowWidth);
                 int targetHeight = Math.Min(40, Console.LargestWindowHeight);
-                
-                // Only resize if current size is too small
+               
                 if (Console.WindowWidth < 80 || Console.WindowHeight < 30)
                 {
                     Console.SetWindowSize(targetWidth, targetHeight);
@@ -109,7 +105,6 @@ namespace Single_Node_Cache.CLI
             }
             catch
             {
-                // Window resizing not supported, use current size
             }
             
             _inputRow = Console.WindowHeight - 4;
@@ -119,12 +114,10 @@ namespace Single_Node_Cache.CLI
         {
             Console.Clear();
             
-            // Draw header
             DrawBox(0, 0, Console.WindowWidth - 1, HeaderHeight, ConsoleColor.Cyan);
             
-            // Center the heading
             string line1 = "+---------------------------------------+";
-            string line2 = "¦   SIMPLE CACHE - Real-Time View     ¦";
+            string line2 = "Â¦   SIMPLE CACHE - Real-Time View     Â¦";
             string line3 = "+---------------------------------------+";
             
             int centerPos1 = (Console.WindowWidth - line1.Length) / 2;
@@ -140,21 +133,18 @@ namespace Single_Node_Cache.CLI
             Console.Write(line3);
             Console.ResetColor();
 
-            // Draw cache panel
             DrawBox(0, HeaderHeight, LeftPanelWidth, _inputRow - HeaderHeight, ConsoleColor.Blue);
             Console.SetCursorPosition(2, HeaderHeight);
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.Write("+- CACHE QUEUE (LRU Order) -+");
             Console.ResetColor();
 
-            // Draw messages panel
             DrawBox(LeftPanelWidth, HeaderHeight, Console.WindowWidth - LeftPanelWidth - 1, _inputRow - HeaderHeight, ConsoleColor.Green);
             Console.SetCursorPosition(LeftPanelWidth + 2, HeaderHeight);
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.Write("+- MESSAGES -+");
             Console.ResetColor();
 
-            // Draw command panel
             DrawBox(0, _inputRow, Console.WindowWidth - 1, Console.WindowHeight - _inputRow - 1, ConsoleColor.Magenta);
             Console.SetCursorPosition(2, _inputRow);
             Console.ForegroundColor = ConsoleColor.Yellow;
@@ -167,52 +157,43 @@ namespace Single_Node_Cache.CLI
             try
             {
                 var state = _cacheManager.GetCacheState();
-                
-                // Clear cache display area
+
                 for (int i = 0; i < _inputRow - HeaderHeight - 2; i++)
                 {
                     Console.SetCursorPosition(1, HeaderHeight + 1 + i);
                     Console.Write(new string(' ', LeftPanelWidth - 2));
                 }
 
-                // Draw capacity info
                 Console.SetCursorPosition(2, HeaderHeight + 1);
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.Write($"Capacity: {state.count}/{state.capacity} ");
-                
-                // Draw capacity bar
+
                 int barWidth = 30;
                 int filled = state.capacity > 0 ? (int)((double)state.count / state.capacity * barWidth) : 0;
                 Console.Write("[");
                 Console.ForegroundColor = state.count >= state.capacity ? ConsoleColor.Red : ConsoleColor.Green;
-                Console.Write(new string('?', filled));
+                Console.Write(new string('â–ˆ', filled));
                 Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.Write(new string('?', barWidth - filled));
+                Console.Write(new string('â–‘', barWidth - filled));
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.Write("]");
                 Console.ResetColor();
 
-                // Draw items
                 int row = HeaderHeight + 3;
                 for (int i = 0; i < state.items.Count && row < _inputRow - 1; i++)
                 {
                     var item = state.items[i];
                     Console.SetCursorPosition(2, row);
 
-                    // Position indicator
                     Console.ForegroundColor = i == 0 ? ConsoleColor.Yellow : ConsoleColor.DarkGray;
                     Console.Write($"[{i + 1}] ");
-
-                    // Key
                     Console.ForegroundColor = item.isExpired ? ConsoleColor.Red : ConsoleColor.White;
                     Console.Write($"{item.key,-15}");
 
-                    // Value
                     Console.ForegroundColor = ConsoleColor.Gray;
                     string valueStr = item.value?.ToString() ?? "null";
                     Console.Write($" | {valueStr.Substring(0, Math.Min(15, valueStr.Length)),-15}");
 
-                    // TTL info
                     if (item.expiryTime.HasValue)
                     {
                         var remaining = item.expiryTime.Value - DateTime.UtcNow;
@@ -239,7 +220,6 @@ namespace Single_Node_Cache.CLI
             }
             catch (Exception ex)
             {
-                // If display update fails, continue gracefully
                 try
                 {
                     Console.SetCursorPosition(2, HeaderHeight + 1);
@@ -253,14 +233,13 @@ namespace Single_Node_Cache.CLI
 
         private void DrawMessagesPanel()
         {
-            // Clear messages area
             for (int i = 0; i < _inputRow - HeaderHeight - 1; i++)
             {
                 Console.SetCursorPosition(LeftPanelWidth + 1, HeaderHeight + 1 + i);
                 Console.Write(new string(' ', Console.WindowWidth - LeftPanelWidth - 3));
             }
 
-            // Draw messages
+
             int startIndex = Math.Max(0, _messages.Count - MaxMessages);
             int row = HeaderHeight + 1;
             
@@ -290,7 +269,6 @@ namespace Single_Node_Cache.CLI
             {
                 _messages.Add(formattedMessage);
                 
-                // Keep only recent messages
                 while (_messages.Count > 50)
                 {
                     _messages.RemoveAt(0);
@@ -302,13 +280,22 @@ namespace Single_Node_Cache.CLI
 
         private void DrawCommandPrompt()
         {
-            Console.SetCursorPosition(2, _inputRow + 1);
-            Console.Write(new string(' ', Console.WindowWidth - 4));
-            Console.SetCursorPosition(2, _inputRow + 1);
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.Write("> ");
-            Console.ForegroundColor = ConsoleColor.White;
-            Console.CursorVisible = true;
+            try
+            {
+                // Clear the entire input row area
+                Console.SetCursorPosition(0, _inputRow + 1);
+                Console.Write(new string(' ', Console.WindowWidth));
+                Console.SetCursorPosition(0, _inputRow + 2);
+                Console.Write(new string(' ', Console.WindowWidth));
+                
+                // Draw the prompt
+                Console.SetCursorPosition(2, _inputRow + 1);
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.Write("> ");
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.CursorVisible = true;
+            }
+            catch { /* Ignore if drawing fails */ }
         }
 
         private string ReadInput()
@@ -468,7 +455,6 @@ namespace Single_Node_Cache.CLI
 
         private void OnCacheChanged()
         {
-            // Save cursor position to avoid disrupting user input
             try
             {
                 var cursorLeft = Console.CursorLeft;
@@ -479,40 +465,59 @@ namespace Single_Node_Cache.CLI
                 UpdateCacheDisplay();
                 DrawMessagesPanel();
                 
-                // Restore cursor position
+                // Clean up the command prompt area
+                CleanCommandArea();
+                
                 Console.SetCursorPosition(cursorLeft, cursorTop);
                 Console.CursorVisible = cursorVisible;
             }
             catch
             {
-                // If cursor positioning fails, just update the display
                 try
                 {
                     UpdateCacheDisplay();
                     DrawMessagesPanel();
+                    CleanCommandArea();
                 }
                 catch { /* Ignore update errors */ }
             }
+        }
+        
+        private void CleanCommandArea()
+        {
+            // Clear all rows in the command panel area
+            try
+            {
+                for (int i = 0; i < Console.WindowHeight - _inputRow; i++)
+                {
+                    Console.SetCursorPosition(0, _inputRow + i);
+                    Console.Write(new string(' ', Console.WindowWidth));
+                }
+                
+                // Redraw the command panel border
+                Console.SetCursorPosition(2, _inputRow);
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.Write("+- COMMANDS: SET <key> <value> [ttl] | GET <key> | EX <key> | DEL <key> | DBLIST | CLEAR | EXIT -+");
+                Console.ResetColor();
+            }
+            catch { /* Ignore if cleaning fails */ }
         }
 
         private void DrawBox(int left, int top, int width, int height, ConsoleColor color)
         {
             Console.ForegroundColor = color;
             
-            // Top border
             Console.SetCursorPosition(left, top);
             Console.Write("+" + new string('-', width - 2) + "+");
             
-            // Sides
             for (int i = 1; i < height - 1; i++)
             {
                 Console.SetCursorPosition(left, top + i);
-                Console.Write("¦");
+                Console.Write("Â¦");
                 Console.SetCursorPosition(left + width - 1, top + i);
-                Console.Write("¦");
+                Console.Write("Â¦");
             }
-            
-            // Bottom border
+
             Console.SetCursorPosition(left, top + height - 1);
             Console.Write("+" + new string('-', width - 2) + "+");
             

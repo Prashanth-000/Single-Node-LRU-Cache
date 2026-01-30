@@ -11,23 +11,19 @@ class Program
     {
         Console.WriteLine("=== Initializing Cache System ===");
         
-        // Create cache (capacity: 3 items)
         var cache = new SimpleCache(3);
         
-        // Create file-based database simulation using Services/db.txt
         var dbFilePath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Services", "db.txt");
         dbFilePath = Path.GetFullPath(dbFilePath);
-        var database = new FileDatabase(dbFilePath, readDelayMs: 1000, writeDelayMs: 1500);
+        var database = new FileDatabase(dbFilePath, readDelayMs: 600, writeDelayMs: 1000);
         
-        // Create cache manager to coordinate cache and database
         var cacheManager = new CacheManager(cache, database);
         
         Console.WriteLine($"Cache capacity: 3 items");
         Console.WriteLine($"Database file: {dbFilePath}");
-        Console.WriteLine($"DB Read delay: 1000ms, Write delay: 1500ms");
+        Console.WriteLine($"DB Read delay: 600ms, Write delay: 1000ms");
         Console.WriteLine("=====================================\n");
         
-        // Start CLI
         var console = new CacheConsole(cacheManager);
         console.Run();
     }

@@ -19,7 +19,6 @@ namespace Single_Node_Cache.Services
             _readDelayMs = readDelayMs;
             _writeDelayMs = writeDelayMs;
             
-            // Create file if it doesn't exist
             if (!File.Exists(_filePath))
             {
                 File.WriteAllText(_filePath, string.Empty);
@@ -31,7 +30,6 @@ namespace Single_Node_Cache.Services
             _fileLock.EnterReadLock();
             try
             {
-                // Simulate database read delay
                 Thread.Sleep(_readDelayMs);
                 
                 var lines = File.ReadAllLines(_filePath);
@@ -61,15 +59,11 @@ namespace Single_Node_Cache.Services
             _fileLock.EnterWriteLock();
             try
             {
-                // Simulate database write delay
                 Thread.Sleep(_writeDelayMs);
                 
                 var lines = File.Exists(_filePath) ? File.ReadAllLines(_filePath).ToList() : new List<string>();
-                
-                // Remove existing key if present
                 lines.RemoveAll(l => l.StartsWith($"{key}="));
                 
-                // Add new key-value pair
                 lines.Add($"{key}={value}");
                 
                 File.WriteAllLines(_filePath, lines);
@@ -86,7 +80,6 @@ namespace Single_Node_Cache.Services
             _fileLock.EnterWriteLock();
             try
             {
-                // Simulate database write delay
                 Thread.Sleep(_writeDelayMs);
                 
                 var lines = File.ReadAllLines(_filePath).ToList();
