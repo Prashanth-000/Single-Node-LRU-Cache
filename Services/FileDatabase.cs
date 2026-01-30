@@ -13,6 +13,11 @@ namespace Single_Node_Cache.Services
         private readonly int _writeDelayMs;
         private readonly ReaderWriterLockSlim _fileLock = new();
 
+        public event Action<string, int>? DatabaseRead;
+        public event Action<string, int>? DatabaseWrite; 
+        public event Action<string, int>? DatabaseDelete; 
+        public event Action<string>? DatabaseMiss;  
+
         public FileDatabase(string filePath, int readDelayMs = 1000, int writeDelayMs = 1500)
         {
             _filePath = filePath;
@@ -40,12 +45,11 @@ namespace Single_Node_Cache.Services
                     var parts = line.Split('=', 2);
                     if (parts.Length == 2)
                     {
-                        Console.WriteLine($"[DB READ] {key} (took {_readDelayMs}ms)");
+                        DatabaseRead?.Invoke(key, _readDelayMs);
                         return parts[1];
                     }
                 }
-                
-                Console.WriteLine($"[DB MISS] {key}");
+                DatabaseMiss?.Invoke(key);
                 return null;
             }
             finally
@@ -67,7 +71,7 @@ namespace Single_Node_Cache.Services
                 lines.Add($"{key}={value}");
                 
                 File.WriteAllLines(_filePath, lines);
-                Console.WriteLine($"[DB WRITE] {key} = {value} (took {_writeDelayMs}ms)");
+                DatabaseWrite?.Invoke(key, _writeDelayMs);
             }
             finally
             {
@@ -90,7 +94,7 @@ namespace Single_Node_Cache.Services
                 if (lines.Count < initialCount)
                 {
                     File.WriteAllLines(_filePath, lines);
-                    Console.WriteLine($"[DB DELETE] {key} (took {_writeDelayMs}ms)");
+                    DatabaseDelete?.Invoke(key, _writeDelayMs);
                     return true;
                 }
                 

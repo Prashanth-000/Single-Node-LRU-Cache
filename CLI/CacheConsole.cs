@@ -20,6 +20,72 @@ namespace Single_Node_Cache.CLI
         {
             _cacheManager = cacheManager;
             _cacheManager.CacheChanged += OnCacheChanged;
+
+            _cacheManager.Cache.ItemCleaned += OnItemCleaned;
+            _cacheManager.Cache.ItemSet += OnItemSet;
+            _cacheManager.Cache.ItemEvicted += OnItemEvicted;
+            _cacheManager.Cache.CacheMiss += OnCacheMiss;
+            _cacheManager.Cache.CacheHit += OnCacheHit;
+            _cacheManager.Cache.ItemExpired += OnItemExpired;
+
+            _cacheManager.CacheMissFromDb += OnCacheMissFromDb;
+            _cacheManager.CacheWarmed += OnCacheWarmed;
+
+            _cacheManager.Database.DatabaseRead += OnDatabaseRead;
+            _cacheManager.Database.DatabaseWrite += OnDatabaseWrite;
+            _cacheManager.Database.DatabaseDelete += OnDatabaseDelete;
+            _cacheManager.Database.DatabaseMiss += OnDatabaseMiss;
+        }
+
+        private void OnItemCleaned(string key)
+        {
+            AddMessage($"Auto cleanup: {key}", ConsoleColor.Cyan);
+        }
+        
+        private void OnItemSet(string key) {}
+        
+        private void OnItemEvicted(string key)
+        {
+            AddMessage($"Evicted (LRU): {key}", ConsoleColor.Yellow);
+        }
+        
+        private void OnCacheMiss(string key) {}
+        
+        private void OnCacheHit(string key) {}
+        
+        private void OnItemExpired(string key)
+        {
+            AddMessage($"Expired on access: {key}", ConsoleColor.Red);
+        }
+        
+        private void OnCacheMissFromDb(string key)
+        {
+            AddMessage($"Cache miss - fetching '{key}' from database...", ConsoleColor.Yellow);
+        }
+        
+        private void OnCacheWarmed(string key)
+        {
+            AddMessage($"Cache warmed: '{key}' loaded from DB", ConsoleColor.Green);
+        }
+        
+        private void OnDatabaseRead(string key, int delayMs)
+        {
+            AddMessage($"DB read: {key} (took {delayMs}ms)", ConsoleColor.DarkGreen);
+        }
+        
+        private void OnDatabaseWrite(string key, int delayMs)
+        {
+            AddMessage($"DB write: {key} = value (took {delayMs}ms)", ConsoleColor.DarkCyan);
+        }
+        
+        private void OnDatabaseDelete(string key, int delayMs)
+        {
+            AddMessage($"DB delete: {key} (took {delayMs}ms)", ConsoleColor.DarkYellow);
+        }
+        
+        private void OnDatabaseMiss(string key)
+        {
+            AddMessage($"DB miss: {key} not found", ConsoleColor.DarkGray);
         }
 
         public void Run()
@@ -148,7 +214,6 @@ namespace Single_Node_Cache.CLI
             DrawBox(0, _inputRow, Console.WindowWidth - 1, Console.WindowHeight - _inputRow - 1, ConsoleColor.Magenta);
             Console.SetCursorPosition(2, _inputRow);
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.Write("+- COMMANDS: SET <key> <value> [ttl] | GET <key> | EX <key> | DEL <key> | DBLIST | CLEAR | EXIT -+");
             Console.ResetColor();
         }
 
@@ -227,7 +292,7 @@ namespace Single_Node_Cache.CLI
                     Console.Write($"Display error: {ex.Message}");
                     Console.ResetColor();
                 }
-                catch { /* Ignore if even error display fails */ }
+                catch {}
             }
         }
 
@@ -275,27 +340,44 @@ namespace Single_Node_Cache.CLI
                 }
             }
             
-            DrawMessagesPanel();
+            try
+            {
+                var cursorLeft = Console.CursorLeft;
+                var cursorTop = Console.CursorTop;
+                var cursorVisible = Console.CursorVisible;
+                
+                Console.CursorVisible = false;
+                DrawMessagesPanel();
+                Console.SetCursorPosition(cursorLeft, cursorTop);
+                Console.CursorVisible = cursorVisible;
+            }
+            catch
+            {
+                try
+                {
+                    DrawMessagesPanel();
+                }
+                catch {}
+            }
         }
 
         private void DrawCommandPrompt()
         {
             try
             {
-                // Clear the entire input row area
-                Console.SetCursorPosition(0, _inputRow + 1);
-                Console.Write(new string(' ', Console.WindowWidth));
-                Console.SetCursorPosition(0, _inputRow + 2);
-                Console.Write(new string(' ', Console.WindowWidth));
-                
-                // Draw the prompt
+                for (int row = _inputRow + 1; row < Console.WindowHeight; row++)
+                {
+                    Console.SetCursorPosition(0, row);
+                    Console.Write(new string(' ', Console.WindowWidth));
+                }
+  
                 Console.SetCursorPosition(2, _inputRow + 1);
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.Write("> ");
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.CursorVisible = true;
             }
-            catch { /* Ignore if drawing fails */ }
+            catch {}
         }
 
         private string ReadInput()
@@ -421,8 +503,7 @@ namespace Single_Node_Cache.CLI
                 {
                     AddMessage($"DEL {parts[1]} - Key not found in database", ConsoleColor.Yellow);
                 }
-                
-                // Display updates automatically via CacheChanged event
+               
             }
             catch (Exception ex)
             {
@@ -464,10 +545,6 @@ namespace Single_Node_Cache.CLI
                 Console.CursorVisible = false;
                 UpdateCacheDisplay();
                 DrawMessagesPanel();
-                
-                // Clean up the command prompt area
-                CleanCommandArea();
-                
                 Console.SetCursorPosition(cursorLeft, cursorTop);
                 Console.CursorVisible = cursorVisible;
             }
@@ -479,13 +556,12 @@ namespace Single_Node_Cache.CLI
                     DrawMessagesPanel();
                     CleanCommandArea();
                 }
-                catch { /* Ignore update errors */ }
+                catch {}
             }
         }
         
         private void CleanCommandArea()
         {
-            // Clear all rows in the command panel area
             try
             {
                 for (int i = 0; i < Console.WindowHeight - _inputRow; i++)
@@ -493,14 +569,11 @@ namespace Single_Node_Cache.CLI
                     Console.SetCursorPosition(0, _inputRow + i);
                     Console.Write(new string(' ', Console.WindowWidth));
                 }
-                
-                // Redraw the command panel border
                 Console.SetCursorPosition(2, _inputRow);
                 Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.Write("+- COMMANDS: SET <key> <value> [ttl] | GET <key> | EX <key> | DEL <key> | DBLIST | CLEAR | EXIT -+");
                 Console.ResetColor();
             }
-            catch { /* Ignore if cleaning fails */ }
+            catch {}
         }
 
         private void DrawBox(int left, int top, int width, int height, ConsoleColor color)
@@ -525,3 +598,4 @@ namespace Single_Node_Cache.CLI
         }
     }
 }
+

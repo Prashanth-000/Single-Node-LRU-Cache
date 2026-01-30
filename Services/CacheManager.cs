@@ -9,6 +9,10 @@ namespace Single_Node_Cache.Services
         private readonly FileDatabase _database;
 
         public event Action? CacheChanged;
+        public event Action<string>? CacheMissFromDb;     
+        public event Action<string>? CacheWarmed;                 
+        public SimpleCache Cache => _cache;
+        public FileDatabase Database => _database;
 
         public CacheManager(SimpleCache cache, FileDatabase database)
         {
@@ -32,14 +36,14 @@ namespace Single_Node_Cache.Services
             {
                 return cachedValue;
             }
-            
-            Console.WriteLine($"[CACHE MISS] Fetching '{key}' from database...");
+         
+            CacheMissFromDb?.Invoke(key);
             var dbValue = _database.Get(key);
             
             if (dbValue != null)
             {
                 _cache.Set(key, dbValue);
-                Console.WriteLine($"[CACHE WARMED] '{key}' added to cache");
+                CacheWarmed?.Invoke(key);
             }
             
             return dbValue;

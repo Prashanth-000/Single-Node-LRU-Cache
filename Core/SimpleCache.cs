@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using Single_Node_Cache.CLI;
 
 namespace Single_Node_Cache.Core
 {
@@ -15,6 +16,12 @@ namespace Single_Node_Cache.Core
         private readonly CleanupService _cleanupService;
 
         public event Action? CacheChanged;
+        public event Action<string>? ItemCleaned;     // Event when items are cleaned up
+        public event Action<string>? ItemSet;         // Event when item is set
+        public event Action<string>? ItemEvicted;     // Event when item is evicted
+        public event Action<string>? CacheMiss;       // Event when cache miss occurs
+        public event Action<string>? CacheHit;        // Event when cache hit occurs
+        public event Action<string>? ItemExpired;     // Event when item expires on access
 
         public SimpleCache(int capacity)
         {
@@ -56,7 +63,8 @@ namespace Single_Node_Cache.Core
             {
                 if (!_store.ContainsKey(key))
                 {
-                    Console.WriteLine($"[MISS] {key}");
+                    // Notify UI about cache miss
+                    CacheMiss?.Invoke(key);
                     return null;
                 }
 
@@ -127,7 +135,8 @@ namespace Single_Node_Cache.Core
                 foreach (var key in expiredKeys)
                 {
                     Remove(key);
-                    Console.WriteLine($"[CLEANUP] {key}");
+                    // Notify UI about cleanup via event
+                    ItemCleaned?.Invoke(key);
                 }
 
                 hasExpired = expiredKeys.Count > 0;

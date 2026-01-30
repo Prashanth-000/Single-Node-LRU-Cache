@@ -7,4 +7,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <None Remove="Services\FileDatabase.cs~RFbf4e7bc.TMP" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Result_img\" />
+  </ItemGroup>
+
 </Project>
